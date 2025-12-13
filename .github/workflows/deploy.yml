@@ -52,7 +52,10 @@ jobs:
     
     - name: 🎯 Create Hugging Face App
       run: |
-        cat > app.py << 'EOF'
+        MODEL_TYPE="${{ github.event.inputs.model_type }}"
+        if [ -z "$MODEL_TYPE" ]; then MODEL_TYPE="lstm"; fi
+        
+        cat > app.py << EOF
         import gradio as gr
         import numpy as np
         import librosa
@@ -60,7 +63,7 @@ jobs:
         import os
         
         # Load production model
-        MODEL_PATH = "models/${{ github.event.inputs.model_type || 'lstm' }}_production.h5"
+        MODEL_PATH = "models/${MODEL_TYPE}_production.h5"
         model = keras.models.load_model(MODEL_PATH)
         
         def extract_mfcc(audio_path, n_mfcc=13, max_len=469):
@@ -103,7 +106,7 @@ jobs:
             inputs=gr.Audio(type="filepath", label="🎤 Upload Audio (WAV/MP3)"),
             outputs=gr.Label(label="🎯 Hasil Prediksi", num_top_classes=2),
             title="🎙️ Gender Voice Classification",
-            description=f"Klasifikasi suara berdasarkan gender menggunakan model **{('${{ github.event.inputs.model_type || 'lstm' }}').upper()}**. Upload file audio untuk memulai prediksi.",
+            description=f"Klasifikasi suara berdasarkan gender menggunakan model **${MODEL_TYPE.upper()}**. Upload file audio untuk memulai prediksi.",
             examples=[],
             theme=gr.themes.Soft(),
             analytics_enabled=False
@@ -148,7 +151,7 @@ jobs:
         MLOps project untuk klasifikasi gender berdasarkan suara menggunakan Deep Learning.
         
         ## 🎯 Model
-        - **Architecture**: ${{ github.event.inputs.model_type || 'lstm' | upper }}
+        - **Architecture**: ${MODEL_TYPE^^}
         - **Input**: Audio file (WAV/MP3)
         - **Output**: Gender (Male/Female) + Confidence
         
@@ -184,7 +187,7 @@ jobs:
           echo "   - app.py" >> $GITHUB_STEP_SUMMARY
           echo "   - requirements_hf.txt (rename to requirements.txt)" >> $GITHUB_STEP_SUMMARY
           echo "   - README_HF.md (rename to README.md)" >> $GITHUB_STEP_SUMMARY
-          echo "   - models/${{ github.event.inputs.model_type || 'lstm' }}_production.h5" >> $GITHUB_STEP_SUMMARY
+          echo "   - models/${MODEL_TYPE}_production.h5" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📦 Files are available in workflow artifacts!" >> $GITHUB_STEP_SUMMARY
         else
@@ -204,14 +207,17 @@ jobs:
           app.py
           requirements_hf.txt
           README_HF.md
-          models/${{ github.event.inputs.model_type || 'lstm' }}_production.h5
+          models/${{ github.event.inputs.model_type }}_production.h5
         retention-days: 30
     
     - name: 🎉 Deployment Summary
       run: |
+        MODEL_TYPE="${{ github.event.inputs.model_type }}"
+        if [ -z "$MODEL_TYPE" ]; then MODEL_TYPE="lstm"; fi
+        
         echo "## ✅ Deployment Complete!" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Model**: ${{ github.event.inputs.model_type || 'lstm' | upper }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Model**: ${MODEL_TYPE^^}" >> $GITHUB_STEP_SUMMARY
         echo "**Status**: Ready for Hugging Face" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📦 Next Steps" >> $GITHUB_STEP_SUMMARY
