@@ -1,6 +1,6 @@
 
 # 🎤 Gender Voice Detection - Streamlit App
-# Prediksi Gender dari Suara menggunakan Logistic Regression (tanpa TensorFlow)
+# Prediksi Gender dari Suara menggunakan TensorFlow LSTM Model
 
 
 import os
@@ -12,8 +12,8 @@ import soundfile as sf
 import streamlit as st
 import noisereduce as nr
 from audio_recorder_streamlit import audio_recorder
-from sklearn.linear_model import LogisticRegression
-import joblib
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 # ============================================================================
 # CONFIG
@@ -32,40 +32,24 @@ N_MFCC = 13
 N_FFT = 2048
 HOP = 512
 TARGET_DB = -20.0
-MODEL_PATH = "models/sklearn_logreg_gender.joblib"
+MODEL_PATH = "models/lstm_production.h5"
 
 # ============================================================================
 # FUNCTIONS
 # ============================================================================
 
 @st.cache_resource
-def load_sklearn_model():
-    """Load or train a simple sklearn model (Logistic Regression)"""
+def load_tf_model():
+    """Load TensorFlow model"""
     try:
         if os.path.exists(MODEL_PATH):
-            model = joblib.load(MODEL_PATH)
+            model = load_model(MODEL_PATH)
             return model
         else:
-            st.info("🔄 Model not found. Training simple Logistic Regression model...")
-            X_PATH = "data/processed/features_latest.npy"
-            Y_PATH = "data/processed/labels_latest.npy"
-            if not os.path.exists(X_PATH) or not os.path.exists(Y_PATH):
-                st.error("❌ Training data not found. Cannot create model.")
-                return None
-            X = np.load(X_PATH, allow_pickle=True)
-            y = np.load(Y_PATH)
-            # Feature engineering: use mean and std of MFCCs as features
-            X_feat = np.array([[np.mean(x), np.std(x)] for x in X])
-            from sklearn.model_selection import train_test_split
-            X_train, X_test, y_train, y_test = train_test_split(X_feat, y, test_size=0.2, random_state=42, stratify=y)
-            model = LogisticRegression()
-            model.fit(X_train, y_train)
-            os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-            joblib.dump(model, MODEL_PATH)
-            st.success("✅ Model trained and saved!")
-            return model
+            st.error(f"❌ Model tidak ditemukan di: `{MODEL_PATH}`")
+            return None
     except Exception as e:
-        st.error(f"❌ Error loading/training model: {e}")
+        st.error(f"❌ Error loading model: {e}")
         return None
 
 
@@ -119,15 +103,14 @@ def predict_gender(model, audio, sr):
     # Process audio
     processed = process_audio(audio, sr)
     mfcc = extract_mfcc(processed, sr)
-    # Feature: mean and std of MFCCs
-    feat = np.array([[np.mean(mfcc), np.std(mfcc)]])
-    pred_prob = model.predict_proba(feat)[0][1]
-    if pred_prob > 0.5:
+    mfcc_padded = pad_sequences([mfcc], dtype='float32', padding='post')
+    pred = model.predict(mfcc_padded, verbose=0)[0][0]
+    if pred > 0.5:
         label = "Perempuan"
-        confidence = pred_prob
+        confidence = float(pred)
     else:
         label = "Laki-laki"
-        confidence = 1 - pred_prob
+        confidence = float(1 - pred)
     return label, confidence, mfcc, processed
 
 
@@ -173,7 +156,7 @@ st.markdown("---")
 
 # Load model
 with st.spinner("⏳ Loading model..."):
-    model = load_sklearn_model()
+    model = load_tf_model()
 
 if model is None:
     st.error(f"❌ Model tidak ditemukan di: `{MODEL_PATH}`")
