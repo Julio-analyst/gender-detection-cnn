@@ -1,0 +1,16 @@
+{
+  "timestamp": "20251213_234046",
+  "total_samples": 1052,
+  "male_samples": 478,
+  "female_samples": 574,
+  "features_shape": [
+    1052,
+    94,
+    13
+  ],
+  "labels_shape": [
+    1052
+  ],
+  "n_mfcc": 13,
+  "time_steps": 94
+}
