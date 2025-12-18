@@ -19,3 +19,7 @@ matplotlib==3.8.2
 
 # Data manipulation
 pandas==2.1.3
+torch
+
+# Fix for MessageFactory error (TensorFlow/torch compatibility)
+protobuf==3.20.3
