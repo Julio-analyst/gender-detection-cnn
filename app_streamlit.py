@@ -103,7 +103,23 @@ def predict_gender(model, audio, sr):
     # Process audio
     processed = process_audio(audio, sr)
     mfcc = extract_mfcc(processed, sr)
-    mfcc_padded = pad_sequences([mfcc], dtype='float32', padding='post')
+    
+    # Pad/truncate sequences to the model's expected time steps
+    expected_timesteps = None
+    try:
+        expected_timesteps = model.input_shape[1]
+    except Exception:
+        expected_timesteps = None
+    if expected_timesteps is not None:
+        mfcc_padded = pad_sequences([mfcc], dtype='float32', padding='post', truncating='post', maxlen=expected_timesteps)
+    else:
+        # Fallback: pad without maxlen if we can't determine the model input shape
+        mfcc_padded = pad_sequences([mfcc], dtype='float32', padding='post')
+    
+    # Ensure correct dtype
+    mfcc_padded = np.asarray(mfcc_padded, dtype='float32')
+    
+    # Predict
     pred = model.predict(mfcc_padded, verbose=0)[0][0]
     if pred > 0.5:
         label = "Perempuan"
