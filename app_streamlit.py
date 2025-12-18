@@ -1,7 +1,7 @@
-"""
-🎤 Gender Voice Detection - Streamlit App
-Prediksi Gender dari Suara menggunakan LSTM Model
-"""
+
+# 🎤 Gender Voice Detection - Streamlit App
+# Prediksi Gender dari Suara menggunakan Logistic Regression (tanpa TensorFlow)
+
 
 import os
 import tempfile
@@ -10,10 +10,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
 import streamlit as st
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.sequence import pad_sequences
 import noisereduce as nr
 from audio_recorder_streamlit import audio_recorder
+from sklearn.linear_model import LogisticRegression
+import joblib
 
 # ============================================================================
 # CONFIG
@@ -32,69 +32,38 @@ N_MFCC = 13
 N_FFT = 2048
 HOP = 512
 TARGET_DB = -20.0
-MODEL_PATH = "models/lstm_production.h5"
+MODEL_PATH = "models/sklearn_logreg_gender.joblib"
 
 # ============================================================================
 # FUNCTIONS
 # ============================================================================
 
 @st.cache_resource
-def load_lstm_model():
-    """Load pre-trained LSTM model"""
+def load_sklearn_model():
+    """Load or train a simple sklearn model (Logistic Regression)"""
     try:
-        # Check if model exists
         if os.path.exists(MODEL_PATH):
-            model = load_model(MODEL_PATH)
+            model = joblib.load(MODEL_PATH)
             return model
         else:
-            # Auto-train if model doesn't exist (for deployment)
-            st.info("🔄 Model not found. Training model automatically...")
-            
-            # Check if data exists
+            st.info("🔄 Model not found. Training simple Logistic Regression model...")
             X_PATH = "data/processed/features_latest.npy"
             Y_PATH = "data/processed/labels_latest.npy"
-            
             if not os.path.exists(X_PATH) or not os.path.exists(Y_PATH):
                 st.error("❌ Training data not found. Cannot create model.")
                 return None
-            
-            # Import training function
-            from tensorflow.keras.models import Sequential
-            from tensorflow.keras.layers import LSTM, Dense, Dropout
-            from sklearn.model_selection import train_test_split
-            
-            # Load data
             X = np.load(X_PATH, allow_pickle=True)
             y = np.load(Y_PATH)
-            
-            # Pad sequences
-            X_padded = pad_sequences(X, dtype='float32', padding='post')
-            
-            # Split data
-            X_train, X_test, y_train, y_test = train_test_split(
-                X_padded, y, test_size=0.2, random_state=42, stratify=y
-            )
-            
-            # Create model
-            model = Sequential([
-                LSTM(64, return_sequences=False, input_shape=(X_train.shape[1], X_train.shape[2])),
-                Dropout(0.2),
-                Dense(1, activation='sigmoid')
-            ])
-            
-            model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-            
-            # Train model
-            with st.spinner("Training model... This may take a few minutes..."):
-                model.fit(X_train, y_train, epochs=50, batch_size=16, validation_split=0.2, verbose=0)
-            
-            # Save model
+            # Feature engineering: use mean and std of MFCCs as features
+            X_feat = np.array([[np.mean(x), np.std(x)] for x in X])
+            from sklearn.model_selection import train_test_split
+            X_train, X_test, y_train, y_test = train_test_split(X_feat, y, test_size=0.2, random_state=42, stratify=y)
+            model = LogisticRegression()
+            model.fit(X_train, y_train)
             os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-            model.save(MODEL_PATH)
-            
+            joblib.dump(model, MODEL_PATH)
             st.success("✅ Model trained and saved!")
             return model
-            
     except Exception as e:
         st.error(f"❌ Error loading/training model: {e}")
         return None
@@ -149,24 +118,16 @@ def predict_gender(model, audio, sr):
     """Predict gender from audio"""
     # Process audio
     processed = process_audio(audio, sr)
-    
-    # Extract MFCC
     mfcc = extract_mfcc(processed, sr)
-    
-    # Pad sequences
-    mfcc_padded = pad_sequences([mfcc], dtype='float32', padding='post')
-    
-    # Predict
-    pred = model.predict(mfcc_padded, verbose=0)[0][0]
-    
-    # Determine label & confidence
-    if pred > 0.5:
+    # Feature: mean and std of MFCCs
+    feat = np.array([[np.mean(mfcc), np.std(mfcc)]])
+    pred_prob = model.predict_proba(feat)[0][1]
+    if pred_prob > 0.5:
         label = "Perempuan"
-        confidence = pred
+        confidence = pred_prob
     else:
         label = "Laki-laki"
-        confidence = 1 - pred
-    
+        confidence = 1 - pred_prob
     return label, confidence, mfcc, processed
 
 
@@ -211,15 +172,15 @@ st.markdown("**Deteksi gender (Laki-laki/Perempuan) menggunakan Deep Learning - 
 st.markdown("---")
 
 # Load model
-with st.spinner("⏳ Loading model LSTM..."):
-    model = load_lstm_model()
+with st.spinner("⏳ Loading model..."):
+    model = load_sklearn_model()
 
 if model is None:
     st.error(f"❌ Model tidak ditemukan di: `{MODEL_PATH}`")
-    st.info("💡 Pastikan model sudah di-train dan tersimpan di folder models/")
+    st.info("💡 Pastikan data/processed/features_latest.npy dan labels_latest.npy tersedia.")
     st.stop()
 
-st.success("✅ Model LSTM berhasil dimuat!")
+st.success("✅ Model berhasil dimuat!")
 
 # Sidebar
 with st.sidebar:
