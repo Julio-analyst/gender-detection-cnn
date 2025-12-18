@@ -10,9 +10,11 @@ numpy==1.26.4
 librosa==0.10.1
 soundfile==0.12.1
 noisereduce==3.0.0
+numba==0.58.1
 
 # Streamlit
 streamlit==1.29.0
+audio-recorder-streamlit
 
 # Visualization
 matplotlib==3.8.2
